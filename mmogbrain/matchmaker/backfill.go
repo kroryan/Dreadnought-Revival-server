@@ -130,14 +130,15 @@ func (m *Matchmaker) backfill(gameMode string, tierMin, fleetType int) (int, err
 			team = 2
 		}
 		for _, e := range g {
-			if _, err := m.DB.Exec(`INSERT OR REPLACE INTO match_slots(match_id,user_id,team) VALUES(?,?,?)`, target.id, e.UserID, team); err != nil {
+			t := offlineTeamFor(pvp, team, target.teams)
+			if _, err := m.DB.Exec(`INSERT OR REPLACE INTO match_slots(match_id,user_id,team) VALUES(?,?,?)`, target.id, e.UserID, t); err != nil {
 				return placed, fmt.Errorf("backfill slot for %s: %w", e.UserID, err)
 			}
 			if _, err := m.DB.Exec(`DELETE FROM queue_entries WHERE id=?`, e.ID); err != nil {
 				return placed, fmt.Errorf("delete backfilled queue entry %s: %w", e.ID, err)
 			}
+			target.teams[t]++
 		}
-		target.teams[team] += len(g)
 		target.total += len(g)
 		placed += len(g)
 		m.Log.WithFields(logrus.Fields{

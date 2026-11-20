@@ -1075,10 +1075,11 @@ func (m *Matchmaker) formMatchOfSize(gameMode string, tierMin int, fleetType int
 			team = 2
 		}
 		for _, e := range g {
+			t := offlineTeamFor(pvp, team, perTeam)
 			entries = append(entries, e)
-			teams = append(teams, team)
+			teams = append(teams, t)
+			perTeam[t]++
 		}
-		perTeam[team] += len(g)
 	}
 
 	// Mark them as matched
