@@ -1261,13 +1261,7 @@ func TestPurchaseItemAcceptsClientOfferShape(t *testing.T) {
 	if _, err := database.Exec(`UPDATE player_state SET premium_currency=50000000 WHERE user_id=?`, playerPID); err != nil {
 		t.Fatalf("seed currency: %v", err)
 	}
-	var hero int32
-	for _, h := range heroShipLoadouts {
-		if _, havoc := havocUnlockThreshold(h.loadoutID); !havoc {
-			hero = h.loadoutID
-			break
-		}
-	}
+	hero := heroShipLoadouts[0].loadoutID
 	offer := "999" + strconv.Itoa(int(hero)) // heroCatalogSeeds' externalID
 	request := protocol.AppendStringField(nil, "offer", offer)
 	request = protocol.AppendInt32Field(request, "quantity", 1)

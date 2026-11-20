@@ -173,15 +173,8 @@ func TestDocumentedMarketPrices(t *testing.T) {
 	if gatewayGpToCreditsRate != 105 {
 		t.Errorf("GP to credits rate %d, want 105", gatewayGpToCreditsRate)
 	}
-	// Every hero is offered on its own except the Havoc unlockable, which is
-	// sold only as its Havoc bundle (havoc.go).
-	plain := 0
-	for _, h := range heroShipLoadouts {
-		if _, havoc := havocUnlockThreshold(h.loadoutID); !havoc {
-			plain++
-		}
-	}
-	if len(heroCatalogSeeds("")) != plain {
+	// Every hero, including the Junkyard Prince, is sold on its own for GP.
+	if len(heroCatalogSeeds("")) != len(heroShipLoadouts) {
 		t.Error("not every hero ship is offered")
 	}
 }

@@ -143,13 +143,7 @@ func TestPurchaseSellsOnlyWhatTheStoreOffers(t *testing.T) {
 	}
 
 	// What the store does sell still sells: a hero ship and a cosmetic, for GP.
-	var hero int32
-	for _, h := range heroShipLoadouts {
-		if havocUnlockRefusal(auditPID, h.loadoutID) == "" {
-			hero = h.loadoutID
-			break
-		}
-	}
+	hero := heroShipLoadouts[0].loadoutID
 	cosmetic, _ := auditSoldCosmetics(t)
 	for what, id := range map[string]int32{"hero ship": hero, "cosmetic": cosmetic} {
 		if result, detail := buy(id); result != "bought" {

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Dreadnought-Revival/Dreadnought-Revival-server/mmogbrain/protocol"
 )
 
 func havocReport(t *testing.T, pid, match, score string) string {
@@ -79,42 +81,25 @@ func TestHavocWeekStartsMonday(t *testing.T) {
 	}
 }
 
-// The Havoc unlockable: the Junkyard Prince bundle carries HavocReward (bit 7,
-// which makes the client's offer a YPIT_HAVOC_UNLOCKABLE_HERO_SHIP), holds the
-// hero and the three Havoc cosmetics, is the only way to buy that hero, and is
-// refused until the player's summed Havoc score reaches 10,000.
-func TestHavocUnlockableHeroShip(t *testing.T) {
+// The cooked table retains the original score threshold, but Offline sells
+// Junkyard Prince directly for its normal tier price.
+func TestHavocHeroCanBeBoughtForGP(t *testing.T) {
 	const junkyardPrince = 67043338
 	threshold, ok := havocUnlockThreshold(junkyardPrince)
 	if !ok || threshold != 10000 {
 		t.Fatalf("threshold %d %v, want 10000", threshold, ok)
 	}
-	var bundle marketBundle
-	for _, b := range marketBundles {
-		if b.havocUnlock {
-			bundle = b
-		}
-	}
-	heroes, vanity := bundle.contents()
-	if len(heroes) != 1 || heroes[0] != junkyardPrince || len(vanity) != 3 {
-		t.Fatalf("bundle contents heroes %v vanity %v", heroes, vanity)
-	}
 	found := false
-	for _, s := range marketBundleCatalogSeeds("") {
-		if s.itemID == bundle.id {
+	for _, s := range heroCatalogSeeds("") {
+		if s.itemID == junkyardPrince {
 			found = true
-			if s.promotionFlags&promotionFlagHavocReward == 0 || len(s.offerItemIDs) != 4 {
-				t.Fatalf("seed flags %d items %v", s.promotionFlags, s.offerItemIDs)
+			if s.priceAmount != 1500 || s.promotionFlags != 0 {
+				t.Fatalf("offer costs %d GP with flags %d; want 1500 and no score gate", s.priceAmount, s.promotionFlags)
 			}
 		}
 	}
 	if !found {
-		t.Fatal("Havoc bundle not in the market")
-	}
-	for _, s := range heroCatalogSeeds("") {
-		if s.itemID == junkyardPrince {
-			t.Fatal("Junkyard Prince still sold as a plain hero ship")
-		}
+		t.Fatal("Junkyard Prince missing from hero market offers")
 	}
 
 	database := useTempMmogPlayerStateDB(t)
@@ -122,35 +107,37 @@ func TestHavocUnlockableHeroShip(t *testing.T) {
 	if err := seedMmogPlayerState(database, pid); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := database.Exec(`UPDATE player_state SET premium_currency=100000 WHERE user_id=?`, pid); err != nil {
+	if _, err := database.Exec(`UPDATE player_state SET premium_currency=1500 WHERE user_id=?`, pid); err != nil {
 		t.Fatal(err)
 	}
-	if why := havocUnlockRefusal(pid, junkyardPrince); why == "" {
-		t.Fatal("bought with no Havoc score")
+	request := protocol.AppendInt32Field(nil, "ItemID", junkyardPrince)
+	response := buildMmogPurchasePayload("YA_PurchaseItem", pid, request)
+	if result := protocol.ExtractStringField(response, "result"); result != "bought" {
+		t.Fatalf("purchase result %q, want bought (reason %q)", result, protocol.ExtractStringField(response, "detailedResult"))
 	}
-	if _, _, reason := grantMarketBundle(database, pid, bundle); reason == "" {
-		t.Fatal("bundle granted with no Havoc score")
+	if paid := protocol.ExtractStringField(response, "pricePaid"); paid != "1500" {
+		t.Fatalf("purchase charged %s GP, want 1500", paid)
 	}
-	for i, score := range []int{6000, 4000} { // sums to 10,000 over two runs
-		if _, err := database.Exec(`INSERT INTO havoc_runs(match_id,user_id,score) VALUES(?,?,?)`, "r"+string(rune('0'+i)), pid, score); err != nil {
-			t.Fatal(err)
+	var balance int
+	if err := database.QueryRow(`SELECT premium_currency FROM player_state WHERE user_id=?`, pid).Scan(&balance); err != nil || balance != 0 {
+		t.Fatalf("premium balance %d, err %v; want 0", balance, err)
+	}
+	owned := false
+	for _, loadout := range ownedShipLoadoutsForPlayerData(mmogPlayerStateForPID(pid), pid) {
+		if loadout.precastLoadoutID == junkyardPrince {
+			owned = true
+			break
 		}
 	}
-	if why := havocUnlockRefusal(pid, junkyardPrince); why != "" {
-		t.Fatalf("still refused at 10,000: %s", why)
-	}
-	if _, got, reason := grantMarketBundle(database, pid, bundle); reason != "" || len(got) != 1 {
-		t.Fatalf("bundle after unlock: heroes %v reason %q", got, reason)
+	if !owned {
+		t.Fatal("successful purchase did not grant Junkyard Prince")
 	}
 }
 
-// plainHeroForTest is a hero ship sold on its own: the first one that is not
-// a Havoc unlockable (heroShipLoadouts[0] is the Junkyard Prince, which is).
+// plainHeroForTest is any hero ship sold on its own.
 func plainHeroForTest() int32 {
-	for _, h := range heroShipLoadouts {
-		if _, havoc := havocUnlockThreshold(h.loadoutID); !havoc {
-			return h.loadoutID
-		}
+	if len(heroShipLoadouts) > 0 {
+		return heroShipLoadouts[0].loadoutID
 	}
 	return 0
 }

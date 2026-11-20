@@ -163,13 +163,7 @@ func TestAdminTechTreeHeroPrice(t *testing.T) {
 	useTempMmogPlayerStateDB(t)
 	useCleanTechTreeCosts(t)
 	r := adminTestRouter()
-	var hero heroShipLoadout
-	for _, h := range heroShipLoadouts {
-		if _, havoc := havocUnlockThreshold(h.loadoutID); !havoc {
-			hero = h // one the Market sells on its own
-			break
-		}
-	}
+	hero := heroShipLoadouts[0] // the Market sells every hero on its own
 	page := ttGetPage(t, r, hero.loadoutID)
 	if len(page.Nodes) != 1 || page.Nodes[0].Kind != "hero" || page.Nodes[0].XP != nil || page.Nodes[0].Price.Currency != "GP" {
 		t.Fatalf("hero page: %+v", page.Nodes)

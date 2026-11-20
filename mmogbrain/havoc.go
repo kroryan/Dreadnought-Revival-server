@@ -177,21 +177,11 @@ func havocPlayerScores(pid string) (lifetime, sum, weekly int32) {
 	return lifetime, sum, weekly
 }
 
-// Havoc unlockable hero ship (DN_HavocUnlockables_DT "UnlockHeroShip":
-// m_highscore 10000, YHRT_ITEM 67043338, the Junkyard Prince).
-//
-// The client sells it as an offer of purchase type
-// YPIT_HAVOC_UNLOCKABLE_HERO_SHIP (3): FUN_1404ff770 gives a bundle offer of
-// more than one item with a hero ship among them type 2 (hero ship), and 3
-// when the offer's PromotionFlags carry bit 7 (EYMarketItemPromotionFlags
-// YMIPF_HavocReward). The numeric PromotionFlags field survives the catalog
-// converter (0x2A7E1A0 ORs the named flags into it). For types 3 and 5 the
-// purchase dialog (RequestBundlePurchaseData 0x4C2920) shows the player's
-// ("HAVOC", "LIFETIMESUM") score against the unlockable's m_highscore -- so the
-// unlock counts every run's score, summed.
-// GUESS: buying stays refused below the threshold; the price is the hero's
-// usual tier price; the bundle's cosmetics are the client's Havoc set for this
-// hull (havocUnlockBundle in market_offers.go).
+// Junkyard Prince's source entry (DN_HavocUnlockables_DT) records a 10,000
+// point Havoc unlock. The stock client treats offers carrying the
+// YMIPF_HavocReward flag as score-gated; Offline deliberately serves this hero
+// as a normal market offer for 1,500 GP instead. Keep the data-derived helper
+// below for reference, but do not use the original score gate on purchases.
 
 // havocUnlockThreshold is the summed Havoc score that unlocks itemID, or
 // false when itemID is not a Havoc unlockable.
@@ -202,17 +192,4 @@ func havocUnlockThreshold(itemID int32) (int32, bool) {
 		}
 	}
 	return 0, false
-}
-
-// havocUnlockRefusal is why pid may not buy itemID yet, or "" when it may.
-func havocUnlockRefusal(pid string, itemID int32) string {
-	threshold, ok := havocUnlockThreshold(itemID)
-	if !ok {
-		return ""
-	}
-	_, sum, _ := havocPlayerScores(pid)
-	if sum >= threshold {
-		return ""
-	}
-	return fmt.Sprintf("havoc unlockable: summed Havoc score %d of %d", sum, threshold)
 }
